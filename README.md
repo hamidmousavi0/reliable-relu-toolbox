@@ -100,8 +100,6 @@ if args.bitflip == 'fixed':
     print(f"{args.dataset} {args.model} {args.name_relu_bound} {args.name_serach_bound} {args.bounds_type} {args.bitflip} {args.iterations}{args.pretrained_model}")
     
     if args.pretrained_model or args.name_relu_bound=='none':
-        # if args.name_relu_bound == "proact":
-        #     set_running_statistics(model,data_loader_dict["sub_train"],distributed=False)    
         print(f"Model accuracy in {args.bitflip} format after replacing ReLU activation functions: {eval(model, data_loader_dict)}")
         for fault_rate in args.fault_rates:
             val_results_fault = eval_fault(model, data_loader_dict, fault_rate, args.iterations, args.bitflip, args.n_word, args.n_frac, args.n_int)
