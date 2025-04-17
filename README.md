@@ -65,6 +65,7 @@ support models on CIFAR-10 and CIFAR-100 : **resnet20,resnet32,resnet44,resnet56
 All models are in https://github.com/chenyaofo/pytorch-cifar-models/tree/master
  
 support_models on ImageNet = **"resnet20","resnet32","resnet44","resnet56","vgg11_bn,vgg13_bn","vgg16_bn",'vgg19_bn', "mobilenetv2_x0_5","mobilenetv2_x0_75","shufflenetv2_x1_5"**
+
 create a data loader : 
 
 ```python
@@ -80,40 +81,34 @@ data_loader_dict, n_classes = build_data_loader(
     )
 ```
 
-load pretrained model : 
+
+replace activatoin function with clipped version and evaluate : 
 
 ```python
-checkpoint = load_state_dict_from_file(args.init_from)
-model.load_state_dict(checkpoint) 
+if args.bitflip == 'fixed':
+        with torch.no_grad():
+            for name, param in model.named_parameters():
+                if param is not None:
+                    param.copy_(torch.tensor(Fxp(param.clone().cpu().numpy(), True, n_word=args.n_word, n_frac=args.n_frac, n_int=args.n_int).get_val(),dtype=torch.float32,device='cuda').cuda())        
+    if args.name_relu_bound!='none':
+        model = replace_act(model, args.name_relu_bound, args.name_serach_bound, data_loader_dict, args.bounds_type, args.bitflip,args.pretrained_model,args.dataset,is_root=(hvd.rank() == 0))
+        if args.pretrained_model:
+            model.load_state_dict(torch.load('pretrained_models/{}/{}/{}_{}_{}_{}.pth'.format(args.dataset,args.model,args.name_relu_bound,args.name_serach_bound,args.bounds_type,args.bitflip),map_location='cuda:0'))
+        else:
+            torch.save(model.state_dict(), 'pretrained_models/{}/{}/{}_{}_{}_{}.pth'.format(args.dataset,args.model,args.name_relu_bound,args.name_serach_bound,args.bounds_type,args.bitflip))    
+
+    print(f"{args.dataset} {args.model} {args.name_relu_bound} {args.name_serach_bound} {args.bounds_type} {args.bitflip} {args.iterations}{args.pretrained_model}")
+    
+    if args.pretrained_model or args.name_relu_bound=='none':
+        # if args.name_relu_bound == "proact":
+        #     set_running_statistics(model,data_loader_dict["sub_train"],distributed=False)    
+        print(f"Model accuracy in {args.bitflip} format after replacing ReLU activation functions: {eval(model, data_loader_dict)}")
+        for fault_rate in args.fault_rates:
+            val_results_fault = eval_fault(model, data_loader_dict, fault_rate, args.iterations, args.bitflip, args.n_word, args.n_frac, args.n_int)
+            print(f"top1 = {val_results_fault['val_top1']}, top5 = {val_results_fault['val_top1']}, Val_loss = {val_results_fault['val_loss']}, fault_rate = {val_results_fault['fault_rate']}")
+
 ```
 
-change the representatoin to fixed-point : 
-
-```python
-for name, param in model.named_parameters():
-    if param!=None:
-      param.copy_(torch.tensor(Fxp(param.clone().cpu().numpy(), True, n_word=args.n_word,n_frac=args.n_frac,n_int=args.n_int).get_val()))
-```
-replace activatoin function with clipped version : 
-
-```python
-from rrelu.setup import replace_act
-model = replace_act(model,args.name_relu_bound,args.name_serach_bound,data_loader_dict,args.bounds_type,args.bitflip)
-```
-
-evaluate the clipped model on various fault rates : 
-
-```python
-from rrelu.setup import eval_fault
-for fault_rate in args.fault_rates: # fault_rates = [10^-7,3 * 10^-7 ,10^-6 , 3 * 10^-6 , 10^-5 , 3 * 10^-5]
-            val_results_fault = eval_fault(model,data_loader_dict,fault_rate,args.iterations,args.bitflip,args.n_word , args.n_frac, args.n_int)
-```
-
-Import a specific module:
-
-```python
-from rrelu.search_bound import proact_bounds 
-```
 
 ### run search in command line 
 When Download this repository into your project folder.
@@ -127,7 +122,7 @@ torchpack dist-run -np 1 python search.py --dataset "dataset name (CIFAR10, CIFA
 
 ### Structure
 
-The main source code of framework is held in `src/rrelu`, which carries `search_bounds`, `relu_bounds` , `extended pytorchfi` and other  implementations.
+The main source code of framework is held in `rrelu`, which carries `search_bounds`, `relu_bounds` , `extended pytorchfi` and other  implementations.
 
 
 ## Citation
