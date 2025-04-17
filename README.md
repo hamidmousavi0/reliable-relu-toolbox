@@ -29,7 +29,7 @@ RReLU serves as the research code accompanying the paper (ProAct: Progressive Tr
 **From Source**
 Download this repository into your project folder.
 ```
-git clone 
+git clone https://github.com/hamidmousavi0/reliable-relu-toolbox.git
 ```
 
 ### Importing
