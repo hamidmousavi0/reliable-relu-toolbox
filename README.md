@@ -60,12 +60,11 @@ create a model :
 from rrelu.setup import build_model
 model = build_model("model_name":string, n_classes:inetger,dropout_rate:float).cuda()
 ```
-support models : [resnet20,resnet32,resnet44,resnet56,vgg11_bn,vgg13_bn,vgg16_bn,
-                          vgg19_bn, mobilenetv2_x0_5,mobilenetv2_x0_75,shufflenetv2_x1_5]
-                          all models are in https://github.com/chenyaofo/pytorch-cifar-models/tree/master
-        '''
-        support_models = ["resnet20","resnet32","resnet44","resnet56","vgg11_bn,vgg13_bn","vgg16_bn",
-                          'vgg19_bn', "mobilenetv2_x0_5","mobilenetv2_x0_75","shufflenetv2_x1_5"]
+support models on CIFAR-10 and CIFAR-100 : **resnet20,resnet32,resnet44,resnet56,vgg11_bn,vgg13_bn,vgg16_bn, vgg19_bn, mobilenetv2_x0_5,mobilenetv2_x0_75,shufflenetv2_x1_5**
+
+All models are in https://github.com/chenyaofo/pytorch-cifar-models/tree/master
+ 
+support_models on ImageNet = **"resnet20","resnet32","resnet44","resnet56","vgg11_bn,vgg13_bn","vgg16_bn",'vgg19_bn', "mobilenetv2_x0_5","mobilenetv2_x0_75","shufflenetv2_x1_5"**
 create a data loader : 
 
 ```python
