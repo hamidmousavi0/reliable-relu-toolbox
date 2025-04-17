@@ -60,19 +60,24 @@ create a model :
 from rrelu.setup import build_model
 model = build_model("model_name":string, n_classes:inetger,dropout_rate:float).cuda()
 ```
-
+support models : [resnet20,resnet32,resnet44,resnet56,vgg11_bn,vgg13_bn,vgg16_bn,
+                          vgg19_bn, mobilenetv2_x0_5,mobilenetv2_x0_75,shufflenetv2_x1_5]
+                          all models are in https://github.com/chenyaofo/pytorch-cifar-models/tree/master
+        '''
+        support_models = ["resnet20","resnet32","resnet44","resnet56","vgg11_bn,vgg13_bn","vgg16_bn",
+                          'vgg19_bn', "mobilenetv2_x0_5","mobilenetv2_x0_75","shufflenetv2_x1_5"]
 create a data loader : 
 
 ```python
 from rrelu.setup import build_data_loader
 data_loader_dict, n_classes = build_data_loader(
-        dataset:string,
-        image_size,
-        batch_size,
-        n_worker,
-        data_path,
-        dist.size(), # for multiple gpu 
-        dist.rank(), # for multiple gpu
+        args.dataset,
+        args.image_size,
+        args.batch_size,
+        args.n_worker,
+        args.data_path,
+        num_replica=args.num_gpus,
+        rank= args.rank
     )
 ```
 
