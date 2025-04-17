@@ -24,17 +24,13 @@ RReLU serves as the research code accompanying the paper (ProAct: Progressive Tr
 * **FtClipAct** ([paper](https://arxiv.org/pdf/1912.00941) and [code](https://github.com/hamidmousavi0/reliable-relu-toolbox/tree/master/rrelu/search_bound/ftclip.py)).
 * **Ranger** ([paper](https://arxiv.org/pdf/2003.13874) and [code](https://github.com/hamidmousavi0/reliable-relu-toolbox/tree/master/rrelu/search_bound/ranger.py)).
 
-## Usage
-you can download the rrelu on PyPI [here](https://pypi.org/project/rrelu/).
-
 ### Installing
-
-**From Pip**
-
-Install using `pip install rrelu`
 
 **From Source**
 Download this repository into your project folder.
+```
+git clone 
+```
 
 ### Importing
 
