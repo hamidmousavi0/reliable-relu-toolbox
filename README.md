@@ -111,8 +111,8 @@ if args.bitflip == 'fixed':
 ### run search in command line 
 When Download this repository into your project folder.
 ```python
-torchpack dist-run -np 1 python search.py --dataset "dataset name (CIFAR10, CIFAR100)" --data_path "path to the dataset" --model "name of the model" --init_from "pretrained file path" \
-                      --name_relu_bound "name of bounded relu" --name_serach_bound "name of the search algorithm" --bounds_type "type of thresholds" --bitflip "value representaiton"
+horovodrun -np 1  python search.py --dataset cifar100 --data_path "./dataset/cifar100"  --batch_size 128 --model "shufflenetv2_x1_5" --n_worker 8 \
+                     --name_relu_bound "proact"  --name_serach_bound "proact" --bounds_type "layer" --bitflip "fixed" --image_size 32  --pretrained_model
 ```
 
 
