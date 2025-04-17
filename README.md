@@ -43,11 +43,15 @@ import rrelu
 In order to use multiple gpu : 
 
 ```python
-pip install torchpack
-from torchpack import distributed as dist
-dist.init()
-torch.backends.cudnn.benchmark = True
-torch.cuda.set_device(dist.local_rank())
+pip install horovod
+import horovod.torch as hvd
+# Initialize Horovod
+hvd.init()
+# Pin GPU to be used to process local rank (one GPU per process)
+if torch.cuda.is_available():
+torch.cuda.set_device(hvd.local_rank())
+args.num_gpus = hvd.size()
+args.rank = hvd.rank()
 ```
 
 create a model : 
