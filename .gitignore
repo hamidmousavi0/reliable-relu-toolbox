@@ -1,0 +1,5 @@
+dataset/
+__pycache__/
+*.sh
+pretrained_models/
+.vscode/
