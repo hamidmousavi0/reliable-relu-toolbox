@@ -1,8 +1,7 @@
 from typing import List, Optional, Union
-
+import torch.distributed as dist
 import torch
 import torch.distributed
-from torchpack import distributed
 from rrelu.utils.metric import AverageMeter
 from rrelu.utils.misc import list_mean, list_sum
 import torch
@@ -13,7 +12,7 @@ __all__ = ["ddp_reduce_tensor", "DistributedMetric"]
 def ddp_reduce_tensor(
     tensor: torch.Tensor, reduce="mean"
 ) -> Union[torch.Tensor, List[torch.Tensor]]:
-    tensor_list = [torch.empty_like(tensor) for _ in range(distributed.size())]
+    tensor_list = [torch.empty_like(tensor) for _ in range(dist.get_world_size())]
     torch.distributed.all_gather(tensor_list, tensor.contiguous(), async_op=False)
     if reduce == "mean":
         return list_mean(tensor_list)

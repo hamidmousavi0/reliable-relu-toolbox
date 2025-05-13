@@ -2,8 +2,8 @@ import torch.nn as nn
 import torch
 from typing import Dict
 from rrelu.utils.distributed import DistributedMetric
+import torch.distributed as dist
 import numpy as np
-from torchpack import distributed as dist
 from tqdm import tqdm
 from rrelu.utils.metric import accuracy
 from rrelu.pytorchfi.weight_error_models import multi_weight_inj_fixed,multi_weight_inj_float,multi_weight_inj_int
@@ -22,7 +22,7 @@ def eval(model: nn.Module, data_loader_dict) -> Dict:
         with tqdm(
             total=len(data_loader_dict["val"]),
             desc="Eval",
-            disable=not dist.is_master(),
+            disable=not dist.get_rank() == 0,
         ) as t:
             for images, labels in data_loader_dict["val"]:
                 images, labels = images.cuda(), labels.cuda()

@@ -5,7 +5,6 @@ import os.path
 from PIL import Image
 from typing import Dict, Optional, Tuple, Type
 from rrelu.utils.metric import accuracy
-from torchpack import distributed as dist
 from tqdm import tqdm
 from rrelu.pytorchfi.weight_error_models import multi_weight_inj_fixed,multi_weight_inj_float,multi_weight_inj_int
 from rrelu.relu_bound.bound_relu import Relu_bound
