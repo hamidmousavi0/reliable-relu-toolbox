@@ -37,10 +37,11 @@ class DistributedMetric(object):
         self.count = torch.zeros(1)[0]
 
     def update(self, val, delta_n=1):
-        import horovod.torch as hvd
+        import torch.distributed as dist
 
         val *= delta_n
-        self.sum += hvd.allreduce(val.detach().cpu(), name=self.name)
+        dist.all_reduce(val.clone())
+        self.sum += val.detach().cpu()
         self.count += delta_n
 
     @property
@@ -65,10 +66,10 @@ class DistributedTensor(object):
 
     @property
     def avg(self):
-        import horovod.torch as hvd
+        import torch.distributed as dist
 
         if not self.synced:
-            self.sum = hvd.allreduce(self.sum, name=self.name)
+            dist.all_reduce(self.sum)
             self.synced = True
         return self.sum / self.count
 

@@ -20,7 +20,8 @@ from rrelu.pytorchfi.core import FaultInjection
 import torch.nn.functional as F
 import time
 from tqdm import tqdm
-import horovod.torch as hvd
+import torch.distributed as dist
+# import horovod.torch as hvd
 from rrelu.relu_bound.bound_relu import Relu_bound
 from rrelu.search_bound.ranger import Ranger_bounds
 
@@ -183,10 +184,10 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
     # build optimizer
     optimizer = torch.optim.Adam(
             net_params,
-            lr=base_lr * hvd.size(),
+            lr=base_lr * dist.get_world_size(),
             weight_decay=4e-11
         )
-    optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
+    # optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
     # build lr scheduler
     lr_scheduler = CosineLRwithWarmup(
         optimizer,
@@ -202,7 +203,7 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
     train_criterion = nn.CrossEntropyLoss().cuda()
     test_criterion = nn.CrossEntropyLoss().cuda()
     # init
-    hvd.broadcast_parameters(model.state_dict(), root_rank=0)
+    # hvd.broadcast_parameters(model.state_dict(), root_rank=0)
     val_info_dict = eval(model, data_provider,is_root)
     print(val_info_dict["val_top1"])
     best_acc =torch.tensor(val_info_dict["val_top1"])

@@ -3,7 +3,6 @@ import os
 import torch.backends.cudnn
 import torch.nn as nn
 from fxpmath import Fxp
-import horovod.torch as hvd
 from rrelu.setup import build_data_loader, build_model, replace_act
 from metrics import eval_fault, eval
 import random

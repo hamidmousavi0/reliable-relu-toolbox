@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch
 import sys;
 from rrelu.relu_bound.bound_relu import Relu_bound
-import horovod.torch as hvd
 activation = {}
 
 # Hook function to capture activations

@@ -16,7 +16,9 @@ from rrelu.search_bound.ranger import Ranger_bounds
 import random
 import time
 from tqdm import tqdm
-import horovod.torch as hvd
+# import horovod.torch as hvd
+import torch.distributed as dist
+
 
 
 def eval(model: nn.Module, data_loader_dict,is_root) :
@@ -151,9 +153,9 @@ def train(
     # build optimizer
     optimizer = torch.optim.Adam(
         net_params,
-        lr=base_lr * hvd.size(),
+        lr=base_lr * dist.get_world_size(),
     )
-    optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
+    # optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
     # build lr scheduler
     lr_scheduler = CosineLRwithWarmup(
         optimizer,
@@ -168,7 +170,7 @@ def train(
     best_val = 0.0
     start_epoch = 0
 
-    hvd.broadcast_parameters(model.state_dict(), root_rank=0)
+    # hvd.broadcast_parameters(model.state_dict(), root_rank=0)
     # start training
     for epoch in range(
         start_epoch,
