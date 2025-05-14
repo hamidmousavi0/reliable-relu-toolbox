@@ -189,11 +189,11 @@ def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,b
         ) as t:
             for i in range(iterations):
                 if bitflip=='float':
-                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate,device='cpu')
                 elif bitflip=='fixed':    
-                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate,device='cpu')
                 elif bitflip =="int":
-                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate,device='cpu')
                     # corrupted_model = multi_weight_inj_int(pfi_model,fault_rate)          
                 for images, labels in data_loader_dict["val"]:
                     images, labels = images, labels
