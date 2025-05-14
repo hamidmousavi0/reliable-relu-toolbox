@@ -1,5 +1,6 @@
 <h1 align="center">
   <br/>
+  <img src="images/RReLU.png" width="500"/>
     Reliable ReLU Toolbox (RReLU) To Enhance Resilience of DNNs 
   </br>
 </h1>
