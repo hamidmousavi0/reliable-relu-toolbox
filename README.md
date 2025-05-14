@@ -26,8 +26,24 @@ RReLU serves as the research code accompanying the paper (ProAct: Progressive Tr
 * **Ranger** ([paper](https://arxiv.org/pdf/2003.13874) and [code](https://github.com/hamidmousavi0/reliable-relu-toolbox/tree/master/rrelu/search_bound/ranger.py)).
 
 ## Usage
-you can download the rrelu on PyPI [here](https://pypi.org/project/rrelu/).
-
+```
+git clone https://github.com/hamidmousavi0/reliable-relu-toolbox.git
+```
+## Code Structure
+```
+- rrelu/
+  - models_cifar/ # Define the models architectures for Cifar-10 and Cifar-100 datasets.
+  - models_imagenet/  # Define the models' architectures for the  ImageNet dataset.
+  - pytorchfi/ # fault-injection library has been adapted to consider bounds parameters as well.
+  - relu_bound/ # Bounded ReLU class definition for different methods.
+  - search_bound/ # Algorithms for searching the bounds value.
+  - utils/ # Some utility functions
+  - hubconf.py # Pre-trained models for Cifar-10 and Cifar-100.
+  - setup.py # setup functions such as build_dataloader, build_model, replace_act.
+- metric.py # Evaluation metrics
+- distribution_plot.py # plot distribution of the activation values.
+- search.py # run the whole method based on the config. 
+```
 ### Installing
 
 **From Pip**
