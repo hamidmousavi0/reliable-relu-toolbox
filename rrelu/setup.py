@@ -384,7 +384,7 @@ def replace_act(model:nn.Module, name_relu_bound:str, name_serach_bound:str,data
                             bounds[key] = torch.max(val)  
                             tresh[key] = torch.min(tresh[key])         
     else:
-        bounds,tresh,alpha = find_bounds(copy.deepcopy(model),data_loader,name_serach_bound,bound_type,bitflip,is_root,device) 
+        bounds,tresh,alpha = find_bounds(copy.deepcopy(model),data_loader,name_serach_bound,bound_type,bitflip,is_root,device=device) 
     model = replace_act_all(model,replace_act_dict[name_relu_bound],bounds,tresh,alpha,prefix='',device=device)
     return model                
                          

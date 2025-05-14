@@ -128,7 +128,7 @@ def replace_act(model:nn.Module,bounds,tresh, prefix='',device='cuda')->nn.Modul
         if isinstance(layer, nn.ReLU) or isinstance(layer,Relu_bound) or isinstance(layer, nn.ReLU6):
             model._modules[name] = bounded_relu_fitact(bounds[layer_name].detach(),tresh[layer_name].detach(),-20,device=device)
         elif len(list(layer.children())) > 0:
-            replace_act(layer,bounds,tresh,layer_name)               
+            replace_act(layer,bounds,tresh,layer_name,device=device)               
     return model
 
 
@@ -150,7 +150,8 @@ def fitact_bounds(model:nn.Module,train_loader, device="cuda", bound_type='layer
             param.requires_grad=False
         else:
             param.requires_grad=True
-    model = train(model, train_loader,is_root,device)
+    print(device)        
+    model = train(model, train_loader,is_root,device=device)
     bounds_dict = {}
     keys=[]
     i=0
@@ -235,7 +236,7 @@ def train(
             optimizer,
             train_criterion,
             lr_scheduler,
-            device
+            device=device
         )
         if device=='cuda':
             val_info_dict = eval(model, data_provider,is_root)
@@ -275,7 +276,8 @@ def train_one_epoch(
 
 
     model.train()
-    data_provider['train'].sampler.set_epoch(epoch)
+    if device=='cuda':
+        data_provider['train'].sampler.set_epoch(epoch)
 
     data_time = AverageMeter()
     with tqdm(

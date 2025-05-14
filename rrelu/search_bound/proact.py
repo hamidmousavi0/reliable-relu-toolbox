@@ -131,7 +131,7 @@ def replace_act_all(model:nn.Module,bounds,tresh, prefix='',device='cuda')->nn.M
         if isinstance(layer, nn.ReLU) or isinstance(layer,Relu_bound)or isinstance(layer, nn.ReLU6):
             model._modules[name] = bounded_hyrelu_proact(bounds[layer_name].detach(),tresh[layer_name].detach(),device=device)
         elif len(list(layer.children())) > 0:
-            replace_act_all(layer,bounds,tresh,layer_name)               
+            replace_act_all(layer,bounds,tresh,layer_name,device=device)               
     return model  
   
 def load_state_dict_from_file(file: str) -> Dict[str, torch.Tensor]:
@@ -340,7 +340,8 @@ def train_one_epoch(
         train_loss = AverageMeter()
         train_top1 = AverageMeter()    
     model.train()
-    data_provider['train'].sampler.set_epoch(epoch)
+    if device=='cuda':
+        data_provider['train'].sampler.set_epoch(epoch)
 
     data_time = AverageMeter()
     with tqdm(

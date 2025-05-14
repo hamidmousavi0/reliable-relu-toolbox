@@ -26,8 +26,12 @@ class FaultInjection:
         if not layer_types:
             layer_types = [nn.Conv2d]
         logging.basicConfig(format="%(asctime)-15s %(clientip)s %(user)-8s %(message)s")
-
-        self.original_model = model.cuda()
+        self.use_cuda = kwargs.get("use_cuda", next(model.parameters()).is_cuda)
+        if self.use_cuda:
+            self.device='cuda'
+        else:
+            self.device='cpu'    
+        self.original_model = model.to(self.device)
         self.output_size = []
         self.layers_type = []
         self.layers_dim = []
@@ -47,7 +51,7 @@ class FaultInjection:
         self.corrupt_dim = [[], [], []]  # C, H, W
         self.corrupt_value = []
 
-        self.use_cuda = kwargs.get("use_cuda", next(model.parameters()).is_cuda)
+        
 
         if not isinstance(input_shape, list):
             raise AssertionError("Error: Input shape must be provided as a list.")

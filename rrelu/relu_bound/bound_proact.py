@@ -13,7 +13,7 @@ class bounded_hyrelu_proact(nn.Module,Relu_bound):
         if tresh ==None:
             bounds_param[param_name1] = nn.Parameter(data=torch.zeros_like(bounds).to(device), requires_grad=True) 
         else:
-            bounds_param[param_name1] = nn.Parameter(data=bounds.cuda(), requires_grad=True) 
+            bounds_param[param_name1] = nn.Parameter(data=bounds.to(device), requires_grad=True) 
           
         self.k = k 
         for name, param in bounds_param.items():
