@@ -49,6 +49,7 @@ git clone https://github.com/hamidmousavi0/reliable-relu-toolbox.git
 ### Installing
 
 **From Source**
+
 Download this repository into your project folder.
 
 ### Details of the usage
@@ -59,11 +60,13 @@ Download this repository into your project folder.
 - [ ] Add object detection Task
 - [ ] Add Transformers architectures
 
-### run search in the command line 
-When you download this repository into your project folder.
-```torchrun --nproc_per_node=2  search.py --dataset cifar10 --data_path "./dataset/cifar10"  --batch_size 128 --model "resnet20" --n_worker 32 \
-                      --name_relu_bound "zero"  --name_serach_bound "ranger" --bounds_type "layer" --bitflip "fixed" --image_size 32 --pretrained_model ```
+### Run search in the command line 
 
+When you download this repository into your project folder.
+```
+torchrun --nproc_per_node=2  search.py --dataset cifar10 --data_path "./dataset/cifar10"  --batch_size 128 --model "resnet20" --n_worker 32 \
+                      --name_relu_bound "zero"  --name_serach_bound "ranger" --bounds_type "layer" --bitflip "fixed" --image_size 32 --pretrained_model
+```
 
 ## Citation
 
