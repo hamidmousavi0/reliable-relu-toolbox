@@ -59,19 +59,10 @@ Download this repository into your project folder.
 - [ ] Add object detection Task
 - [ ] Add Transformers architectures
 
-### run search in command line 
-When Download this repository into your project folder.
-```python
-torchpack dist-run -np 1 python search.py --dataset "dataset name (CIFAR10, CIFAR100)" --data_path "path to the dataset" --model "name of the model" --init_from "pretrained file path" \
-                      --name_relu_bound "name of bounded relu" --name_serach_bound "name of the search algorithm" --bounds_type "type of thresholds" --bitflip "value representaiton"
-```
-
-
-## Code
-
-### Structure
-
-The main source code of framework is held in `src/rrelu`, which carries `search_bounds`, `relu_bounds` , `extended pytorchfi` and other  implementations.
+### run search in the command line 
+When you download this repository into your project folder.
+```torchrun --nproc_per_node=2  search.py --dataset cifar10 --data_path "./dataset/cifar10"  --batch_size 128 --model "resnet20" --n_worker 32 \
+                      --name_relu_bound "zero"  --name_serach_bound "ranger" --bounds_type "layer" --bitflip "fixed" --image_size 32 --pretrained_model ```
 
 
 ## Citation
