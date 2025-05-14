@@ -53,7 +53,10 @@ git clone https://github.com/hamidmousavi0/reliable-relu-toolbox.git
 Download this repository into your project folder.
 
 ### Details of the usage
+Use the following notebook to learn the main steps of the tool.
+
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/hamidmousavi0/reliable-relu-toolbox/blob/master/RReLU.ipynb)
+
 ## To-do list
 - [x] Support all pretrained models in PyTorch-hub
 - [x] Support distributed training and evaluation 
