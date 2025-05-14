@@ -42,16 +42,16 @@ git clone https://github.com/hamidmousavi0/reliable-relu-toolbox.git
   - setup.py # setup functions such as build_dataloader, build_model, replace_act.
 - metric.py # Evaluation metrics
 - distribution_plot.py # plot distribution of the activation values.
-- search.py # run the whole method based on the config. 
+- search.py # run the whole method based on the config.
+- search.py # run the whole method based on the config.
+- **RReLU.ipynb** # shows the steps for using the RReLU library.
 ```
 ### Installing
 
-**From Pip**
-
-Install using `pip install rrelu`
-
 **From Source**
 Download this repository into your project folder.
+
+### Details of the usage
 
 ## To-do list
 - [x] Support all pretrained models in PyTorch-hub
