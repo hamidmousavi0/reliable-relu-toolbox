@@ -54,7 +54,7 @@ def eval(model: nn.Module, data_loader_dict) -> Dict:
     }
     return val_results
 
-def eval_single_gpu(model: nn.Module, data_loader_dict) -> Dict:
+def eval_cpu(model: nn.Module, data_loader_dict) -> Dict:
 
     test_criterion = nn.CrossEntropyLoss().cuda()
 
@@ -67,10 +67,9 @@ def eval_single_gpu(model: nn.Module, data_loader_dict) -> Dict:
         with tqdm(
             total=len(data_loader_dict["val"]),
             desc="Eval",
-            disable=not dist.get_rank() == 0,
         ) as t:
             for images, labels in data_loader_dict["val"]:
-                images, labels = images.cuda(), labels.cuda()
+                images, labels = images, labels
                 # compute output
                 output = model(images)
                 loss = test_criterion(output, labels)
@@ -164,7 +163,7 @@ def eval_fault(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitfl
     return val_results
 
 
-def eval_fault_single_gpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitflip=None,total_bits = 32 , n_frac = 16 , n_int = 15 )-> Dict:
+def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitflip=None,total_bits = 32 , n_frac = 16 , n_int = 15 )-> Dict:
     inputs, classes = next(iter(data_loader_dict['val'])) 
     pfi_model = FaultInjection(model, 
                             inputs.shape[0],
@@ -173,10 +172,10 @@ def eval_fault_single_gpu(model:nn.Module,data_loader_dict, fault_rate,iteration
                             total_bits= total_bits,
                             n_frac = n_frac, 
                             n_int = n_int, 
-                            use_cuda=True,
+                            use_cuda=False,
                             )
     print(pfi_model.print_pytorchfi_layer_summary())
-    test_criterion = nn.CrossEntropyLoss().cuda()
+    test_criterion = nn.CrossEntropyLoss()
 
     val_loss = AverageMeter()
     val_top1 = AverageMeter()
@@ -187,7 +186,6 @@ def eval_fault_single_gpu(model:nn.Module,data_loader_dict, fault_rate,iteration
         with tqdm(
             total= iterations,
             desc="Eval",
-            disable=not dist.get_rank() == 0,
         ) as t:
             for i in range(iterations):
                 if bitflip=='float':
@@ -198,7 +196,7 @@ def eval_fault_single_gpu(model:nn.Module,data_loader_dict, fault_rate,iteration
                     corrupted_model = multi_weight_inj_int (pfi_model,fault_rate)
                     # corrupted_model = multi_weight_inj_int(pfi_model,fault_rate)          
                 for images, labels in data_loader_dict["val"]:
-                    images, labels = images.cuda(), labels.cuda()
+                    images, labels = images, labels
                     output = corrupted_model(images)
                     loss = test_criterion(output, labels)
                     val_loss.update(loss, images.shape[0])
