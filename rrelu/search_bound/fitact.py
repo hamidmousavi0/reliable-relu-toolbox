@@ -65,6 +65,48 @@ def eval(model: nn.Module, data_loader_dict,is_root) :
     }
     return val_results
 
+def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
+
+    test_criterion = nn.CrossEntropyLoss()
+
+    val_loss = AverageMeter()
+    val_top1 = AverageMeter()
+    val_top5 = AverageMeter()
+
+    model.eval()
+    with torch.no_grad():
+        with tqdm(
+            total=len(data_loader_dict["val"]),
+            desc="Eval",
+        ) as t:
+            for images, labels in data_loader_dict["val"]:
+                images, labels = images, labels
+                # compute output
+                output = model(images)
+                loss = test_criterion(output, labels)
+                val_loss.update(loss, images.shape[0])
+                acc1, acc5 = accuracy(output, labels, topk=(1, 5))
+                val_top5.update(acc5[0], images.shape[0])
+                val_top1.update(acc1[0], images.shape[0])
+
+                t.set_postfix(
+                    {
+                        "loss": val_loss.avg.item(),
+                        "top1": val_top1.avg.item(),
+                        "top5": val_top5.avg.item(),
+                        "#samples": val_top1.count,
+                        "batch_size": images.shape[0],
+                        "img_size": images.shape[2],
+                    }
+                )
+                t.update()
+
+    val_results = {
+        "val_top1": val_top1.avg.item(),
+        "val_top5": val_top5.avg.item(),
+        "val_loss": val_loss.avg.item(),
+    }
+    return val_results
 
 activation={}
 def get_activation(name):
@@ -80,11 +122,11 @@ def relu_hooks(model: nn.Module, prefix=''):
         elif len(list(layer.children())) > 0:  # Recursively check nested modules
             relu_hooks(layer, layer_name)
 
-def replace_act(model:nn.Module,bounds,tresh, prefix='')->nn.Module:
+def replace_act(model:nn.Module,bounds,tresh, prefix='',device='cuda')->nn.Module:
     for name,layer in model.named_children():
         layer_name = f"{prefix}.{name}" if prefix else name
         if isinstance(layer, nn.ReLU) or isinstance(layer,Relu_bound) or isinstance(layer, nn.ReLU6):
-            model._modules[name] = bounded_relu_fitact(bounds[layer_name].detach(),tresh[layer_name].detach(),-20)
+            model._modules[name] = bounded_relu_fitact(bounds[layer_name].detach(),tresh[layer_name].detach(),-20,device=device)
         elif len(list(layer.children())) > 0:
             replace_act(layer,bounds,tresh,layer_name)               
     return model
@@ -95,7 +137,7 @@ def replace_act(model:nn.Module,bounds,tresh, prefix='')->nn.Module:
 
 def fitact_bounds(model:nn.Module,train_loader, device="cuda", bound_type='layer',bitflip='float',is_root=False):
     results,tresh,_ = Ranger_bounds(copy.deepcopy(model),train_loader,device,bound_type)
-    model = replace_act(model,results,tresh)
+    model = replace_act(model,results,tresh,device=device)
     torch.backends.cudnn.benchmark = True
 
     for name, param in model.named_parameters():
@@ -108,7 +150,7 @@ def fitact_bounds(model:nn.Module,train_loader, device="cuda", bound_type='layer
             param.requires_grad=False
         else:
             param.requires_grad=True
-    model = train(model, train_loader,is_root)
+    model = train(model, train_loader,is_root,device)
     bounds_dict = {}
     keys=[]
     i=0
@@ -129,7 +171,8 @@ def train(
     base_lr=0.001,
     warmup_epochs = 0 ,
     n_epochs = 100,
-    weight_decay = 4e-11
+    weight_decay = 4e-11,
+    device='cuda'
 
 ):
     
@@ -151,10 +194,17 @@ def train(
         },
     ]
     # build optimizer
-    optimizer = torch.optim.Adam(
-        net_params,
-        lr=base_lr * dist.get_world_size(),
-    )
+    if device=='cuda':
+        optimizer = torch.optim.Adam(
+            net_params,
+            lr=base_lr * dist.get_world_size(),
+        )
+    else:
+        optimizer = torch.optim.Adam(
+            net_params,
+            lr=base_lr,
+        )
+
     # optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
     # build lr scheduler
     lr_scheduler = CosineLRwithWarmup(
@@ -165,7 +215,7 @@ def train(
     )
     
     # train criterion
-    train_criterion = nn.CrossEntropyLoss().cuda()
+    train_criterion = nn.CrossEntropyLoss().to(device)
     # init
     best_val = 0.0
     start_epoch = 0
@@ -185,9 +235,13 @@ def train(
             optimizer,
             train_criterion,
             lr_scheduler,
+            device
         )
-    
-        val_info_dict = eval(model, data_provider,is_root)
+        if device=='cuda':
+            val_info_dict = eval(model, data_provider,is_root)
+        else:
+            val_info_dict = eval_cpu(model, data_provider,True)
+
         is_best = val_info_dict["val_top1"] > best_val
         best_val = max(best_val, val_info_dict["val_top1"])
         # log
@@ -209,10 +263,16 @@ def train_one_epoch(
     optimizer,
     criterion,
     lr_scheduler,
+    device
 
 ):
-    train_loss = DistributedMetric()
-    train_top1 = DistributedMetric()
+    if device=='cuda':
+        train_loss = DistributedMetric()
+        train_top1 = DistributedMetric()
+    else:
+        train_loss = AverageMeter()
+        train_top1 = AverageMeter()
+
 
     model.train()
     data_provider['train'].sampler.set_epoch(epoch)
@@ -226,7 +286,7 @@ def train_one_epoch(
         end = time.time()
         for _, (images, labels) in enumerate(data_provider['train']):
             data_time.update(time.time() - end)
-            images, labels = images.cuda(), labels.cuda()
+            images, labels = images.to(device), labels.to(device)
             l2_bounds = 0.0
             for name, param in model.named_parameters():
                 if param.requires_grad==True:

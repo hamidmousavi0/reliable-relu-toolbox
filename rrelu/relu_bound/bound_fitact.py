@@ -2,12 +2,12 @@ import torch
 import torch.nn as nn
 from rrelu.relu_bound.bound_relu import Relu_bound
 class bounded_relu_fitact(nn.Module,Relu_bound):
-    def __init__(self,bounds,tresh=None,alpha = None,k=-20):
+    def __init__(self,bounds,tresh=None,alpha = None,k=-20,device='cuda'):
         super().__init__()
         bounds_param={}
         param_name= "bounds_param"
         self.tresh = None
-        bounds_param[param_name] = nn.Parameter(data=bounds.cuda(), requires_grad=True)  
+        bounds_param[param_name] = nn.Parameter(data=bounds.to(device), requires_grad=True)  
         self.k = k 
         for name, param in bounds_param.items():
             self.register_parameter(name, param) 

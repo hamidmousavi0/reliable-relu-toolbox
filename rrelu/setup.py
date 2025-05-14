@@ -321,30 +321,30 @@ def relu_hooks(model: nn.Module, prefix=''):
         elif len(list(layer.children())) > 0:  # Recursively check nested modules
             relu_hooks(layer, layer_name)
 
-def find_bounds(model:nn.Module, data_loader, name:str,bound_type:str,bitflip:str,is_root:bool):
+def find_bounds(model:nn.Module, data_loader, name:str,bound_type:str,bitflip:str,is_root:bool,device:str):
     search_bounds_dict={
         "ranger" : Ranger_bounds,
         "ftclip" : FtClipAct_bounds,
         'fitact' : fitact_bounds,
         'proact'  : proact_bounds
     }
-    return search_bounds_dict[name](model,data_loader,bound_type=bound_type,bitflip=bitflip,is_root = is_root)
+    return search_bounds_dict[name](model,data_loader,bound_type=bound_type,bitflip=bitflip,is_root = is_root,device=device)
 
-def replace_act_all(model:nn.Module,relu_bound,bounds,tresh,alpha=None, prefix='')->nn.Module:
+def replace_act_all(model:nn.Module,relu_bound,bounds,tresh,alpha=None, prefix='',device='cuda')->nn.Module:
     for name,layer in model.named_children():
         layer_name = f"{prefix}.{name}" if prefix else name
         if isinstance(layer, nn.ReLU) or isinstance(layer, nn.ReLU6):
             if alpha == None:
-                model._modules[name] = relu_bound(bounds[layer_name].detach(),tresh[layer_name].detach(),alpha)
+                model._modules[name] = relu_bound(bounds[layer_name].detach(),tresh[layer_name].detach(),alpha,device=device)
             else:
-                model._modules[name] = relu_bound(bounds[layer_name].detach(),tresh[layer_name].detach(),alpha[layer_name].detach())
+                model._modules[name] = relu_bound(bounds[layer_name].detach(),tresh[layer_name].detach(),alpha[layer_name].detach(),device=device)
                     
         elif len(list(layer.children())) > 0:
-            replace_act_all(layer,relu_bound,bounds,tresh,alpha,layer_name)               
+            replace_act_all(layer,relu_bound,bounds,tresh,alpha,layer_name,device=device)               
     return model 
 
 
-def replace_act(model:nn.Module, name_relu_bound:str, name_serach_bound:str,data_loader,bound_type:str,bitflip:str,pretrained:bool,dataset:str,is_root:False)->nn.Module:
+def replace_act(model:nn.Module, name_relu_bound:str, name_serach_bound:str,data_loader,bound_type:str,bitflip:str,pretrained:bool,dataset:str,is_root:False,device='cpu')->nn.Module:
     replace_act_dict={
         'zero' : bounded_relu_zero,
         'tresh': bounded_relu_tresh,
@@ -359,9 +359,9 @@ def replace_act(model:nn.Module, name_relu_bound:str, name_serach_bound:str,data
         alpha=None
         relu_hooks(model)
         if dataset=="imagenet":
-            dummy_input = torch.randn((1,3,224,224)).cuda()
+            dummy_input = torch.randn((1,3,224,224)).to(device)
         else:
-            dummy_input = torch.randn((1,3,32,32)).cuda()  
+            dummy_input = torch.randn((1,3,32,32)).to(device)  
         # Use torch.no_grad() for inference efficiency
         with torch.no_grad():
             _ = model(dummy_input)
@@ -384,8 +384,8 @@ def replace_act(model:nn.Module, name_relu_bound:str, name_serach_bound:str,data
                             bounds[key] = torch.max(val)  
                             tresh[key] = torch.min(tresh[key])         
     else:
-        bounds,tresh,alpha = find_bounds(copy.deepcopy(model),data_loader,name_serach_bound,bound_type,bitflip,is_root) 
-    model = replace_act_all(model,replace_act_dict[name_relu_bound],bounds,tresh,alpha,prefix='')
+        bounds,tresh,alpha = find_bounds(copy.deepcopy(model),data_loader,name_serach_bound,bound_type,bitflip,is_root,device) 
+    model = replace_act_all(model,replace_act_dict[name_relu_bound],bounds,tresh,alpha,prefix='',device=device)
     return model                
                          
     

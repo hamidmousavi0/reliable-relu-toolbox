@@ -5,13 +5,13 @@ from rrelu.relu_bound.bound_relu import Relu_bound
 import torch.nn.functional as F
 
 class bounded_hyrelu_proact(nn.Module,Relu_bound):
-    def __init__(self,bounds=None,tresh=None,alpha_param = None,k=-20):
+    def __init__(self,bounds=None,tresh=None,alpha_param = None,k=-20,device='cuda'):
         super().__init__()
         bounds_param={}
         param_name1= "bounds_param"
         self.tresh = tresh
         if tresh ==None:
-            bounds_param[param_name1] = nn.Parameter(data=torch.zeros_like(bounds).cuda(), requires_grad=True) 
+            bounds_param[param_name1] = nn.Parameter(data=torch.zeros_like(bounds).to(device), requires_grad=True) 
         else:
             bounds_param[param_name1] = nn.Parameter(data=bounds.cuda(), requires_grad=True) 
           

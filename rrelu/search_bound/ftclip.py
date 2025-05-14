@@ -11,6 +11,7 @@ from rrelu.pytorchfi.weight_error_models import bit_flip_weight_IEEE,bit_flip_we
 from rrelu.relu_bound.bound_zero import bounded_relu_zero 
 from rrelu.relu_bound.bound_relu import Relu_bound
 from rrelu.search_bound.ranger import Ranger_bounds
+from rrelu.utils.metric import AverageMeter
 import random
 activation={}
 def get_activation(name):
@@ -26,11 +27,11 @@ def relu_hooks(model: nn.Module, prefix=''):
             layer.register_forward_hook(get_activation(layer_name))
         elif len(list(layer.children())) > 0:  # Recursively check nested modules
             relu_hooks(layer, layer_name)
-def replace_act_all(model:nn.Module,bounds,tresh, prefix='')->nn.Module:
+def replace_act_all(model:nn.Module,bounds,tresh, prefix='',device='cuda')->nn.Module:
     for name,layer in model.named_children():
         layer_name = f"{prefix}.{name}" if prefix else name
         if isinstance(layer, nn.ReLU) or isinstance(layer,Relu_bound) or isinstance(layer, nn.ReLU6):
-            model._modules[name] = bounded_relu_zero(bounds[layer_name].detach(),tresh[layer_name].detach())
+            model._modules[name] = bounded_relu_zero(bounds[layer_name].detach(),tresh[layer_name].detach(),device=device)
         elif len(list(layer.children())) > 0:
             replace_act_all(layer,bounds,tresh,layer_name)               
     return model
@@ -59,13 +60,12 @@ def replace_act(model:nn.Module,bounds,key,tresh,name='')->nn.Module:
     return model  
 def FtClipAct_bounds(model:nn.Module, data_loader, device="cuda",bound_type='layer',bitflip='fixed',is_root=False,N=4, M = 3,fault_rates=[1e-7,1e-6,3e-6,1e-5,3e-5], delta_b=0.2):
     model.eval()
-    model.cuda()
     if bound_type=="neuron":
         raise AssertionError("FTClip Act doesnt work with neuron wise")
     else:
         bounds_ftclip,tresh_ftclip,_ = Ranger_bounds(copy.deepcopy(model),data_loader)               
      
-    model = replace_act_all(model,bounds_ftclip,tresh_ftclip,prefix='').cuda()
+    model = replace_act_all(model,bounds_ftclip,tresh_ftclip,prefix='',device=device).to(device)
     for key,val in bounds_ftclip.items():
         print(key,val)
         counter = 1
@@ -125,7 +125,7 @@ def auc_compute(model,fault_rates,data_loader,device,bitflip):
     acc = 0 
     orig_model = copy.deepcopy(model)
     for fault_rate in fault_rates:
-        acc = accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip)
+        acc = accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip,device)
         acc_list.append(acc)
         acc=0
         model = copy.deepcopy(orig_model)
@@ -154,30 +154,37 @@ def Interval_Search(T,AUC):
 
 
 
-def accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip,fault_simulation_epochs=5):
+def accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip,fault_simulation_epochs=5,device='cpu'):
     inputs, classes = next(iter(data_loader['sub_train']))
+    if device == 'cuda':
+        use_cuda = True
     pfi_model = FaultInjection(copy.deepcopy(model), 
                 inputs.shape[0],
                 input_shape=[inputs.shape[1],inputs.shape[2],inputs.shape[3]],
                 layer_types=[torch.nn.Conv2d, torch.nn.Linear],
-                use_cuda=True,
+                use_cuda=use_cuda,
                 )
-    model.cuda()
-    val_loss = DistributedMetric()
-    val_top1 = DistributedMetric()
-    val_top5 = DistributedMetric()
-    test_criterion = nn.CrossEntropyLoss().cuda()
+    model.to(device)
+    if device=='cuda':
+        val_loss = DistributedMetric()
+        val_top1 = DistributedMetric()
+        val_top5 = DistributedMetric()
+    else:
+        val_loss = AverageMeter()
+        val_top1 = AverageMeter()
+        val_top5 = AverageMeter()
+    test_criterion = nn.CrossEntropyLoss().to(device)
     pfi_model.original_model.eval()
     with torch.no_grad():
         for i in range(fault_simulation_epochs):  
             if bitflip=='float':
-                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate,device=device)
             elif bitflip=='fixed':    
-                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate,device=device)
             elif bitflip =="int":
-                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate)
+                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate,device=device)
             for images, labels in data_loader["sub_train"]:
-                images, labels = images.cuda(), labels.cuda()
+                images, labels = images.to(device), labels.to(device)
                 output = corrupted_model(images)
                 loss = test_criterion(output, labels)
                 val_loss.update(loss, images.shape[0])
@@ -188,7 +195,7 @@ def accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip,fault_simulation_
 
 
 ######################### Fault Injection ##################################
-def multi_weight_inj_int(pfi, sdc_p=1e-5, function1=bit_flip_weight_int,function2=bit_flip_weight_IEEE):
+def multi_weight_inj_int(pfi, sdc_p=1e-5, function1=bit_flip_weight_int,function2=bit_flip_weight_IEEE,device='cpu'):
     corrupt_idx = [[], [], [], [], []]
     corrupt_bit_idx = []
     corrupt_idx_bias = [[], [], [], [], []]
@@ -207,18 +214,18 @@ def multi_weight_inj_int(pfi, sdc_p=1e-5, function1=bit_flip_weight_int,function
             if shape_bias[0] !=None : 
                 nunmber_fault_bias = int(shape_bias[0] * shape_bias[1] * shape_bias[2] * shape_bias [3] * total_bits * sdc_p) 
             if nunmber_fault_weight !=0: 
-                k_w = torch.randint(shape[0],(nunmber_fault_weight,), device='cuda')
-                dim1_w = torch.randint(shape[1],(nunmber_fault_weight,), device='cuda')
-                dim2_w = torch.randint(shape[2],(nunmber_fault_weight,), device='cuda')
-                dim3_w = torch.randint(shape[3],(nunmber_fault_weight,), device='cuda')
-                dim4_w = torch.randint(total_bits,(nunmber_fault_weight,), device='cuda')
+                k_w = torch.randint(shape[0],(nunmber_fault_weight,), device=device)
+                dim1_w = torch.randint(shape[1],(nunmber_fault_weight,), device=device)
+                dim2_w = torch.randint(shape[2],(nunmber_fault_weight,), device=device)
+                dim3_w = torch.randint(shape[3],(nunmber_fault_weight,), device=device)
+                dim4_w = torch.randint(total_bits,(nunmber_fault_weight,), device=device)
             if shape_bias[0]!=None:
                 if nunmber_fault_bias!=0:
-                    k_b = torch.randint(shape[0],(nunmber_fault_bias,), device='cuda')
-                    dim1_b = torch.randint(shape[1],(nunmber_fault_bias,), device='cuda')
-                    dim2_b = torch.randint(shape[2],(nunmber_fault_bias,), device='cuda')
-                    dim3_b = torch.randint(shape[3],(nunmber_fault_bias,), device='cuda')
-                    dim4_b = torch.randint(total_bits,(nunmber_fault_bias,), device='cuda')
+                    k_b = torch.randint(shape[0],(nunmber_fault_bias,), device=device)
+                    dim1_b = torch.randint(shape[1],(nunmber_fault_bias,), device=device)
+                    dim2_b = torch.randint(shape[2],(nunmber_fault_bias,), device=device)
+                    dim3_b = torch.randint(shape[3],(nunmber_fault_bias,), device=device)
+                    dim4_b = torch.randint(total_bits,(nunmber_fault_bias,), device=device)
             for fault in range(nunmber_fault_weight):
                 idx = [layer_idx, k_w[fault].item(), dim1_w[fault].item(), dim2_w[fault].item(), dim3_w[fault].item()]
                 for i in range(dim_len + 1):
@@ -250,7 +257,7 @@ def multi_weight_inj_int(pfi, sdc_p=1e-5, function1=bit_flip_weight_int,function
 
 
 
-def multi_weight_inj_float(pfi, sdc_p=1e-5, function1=bit_flip_weight_IEEE,function2=bit_flip_weight_IEEE):
+def multi_weight_inj_float(pfi, sdc_p=1e-5, function1=bit_flip_weight_IEEE,function2=bit_flip_weight_IEEE,device='cpu'):
     corrupt_idx = [[], [], [], [], []]
     corrupt_bit_idx = []
     corrupt_idx_bias = [[], [], [], [], []]
@@ -269,18 +276,18 @@ def multi_weight_inj_float(pfi, sdc_p=1e-5, function1=bit_flip_weight_IEEE,funct
             if shape_bias[0] !=None : 
                 nunmber_fault_bias = int(shape_bias[0] * shape_bias[1] * shape_bias[2] * shape_bias [3] * total_bits * sdc_p) 
             if nunmber_fault_weight !=0:   
-                k_w = torch.randint(shape[0],(nunmber_fault_weight,), device='cuda')
-                dim1_w = torch.randint(shape[1],(nunmber_fault_weight,), device='cuda')
-                dim2_w = torch.randint(shape[2],(nunmber_fault_weight,), device='cuda')
-                dim3_w = torch.randint(shape[3],(nunmber_fault_weight,), device='cuda')
-                dim4_w = torch.randint(total_bits,(nunmber_fault_weight,), device='cuda')
+                k_w = torch.randint(shape[0],(nunmber_fault_weight,), device=device)
+                dim1_w = torch.randint(shape[1],(nunmber_fault_weight,), device=device)
+                dim2_w = torch.randint(shape[2],(nunmber_fault_weight,), device=device)
+                dim3_w = torch.randint(shape[3],(nunmber_fault_weight,), device=device)
+                dim4_w = torch.randint(total_bits,(nunmber_fault_weight,), device=device)
             if shape_bias[0]!=None:
                 if nunmber_fault_bias!=0:
-                    k_b = torch.randint(shape[0],(nunmber_fault_bias,), device='cuda')
-                    dim1_b = torch.randint(shape[1],(nunmber_fault_bias,), device='cuda')
-                    dim2_b = torch.randint(shape[2],(nunmber_fault_bias,), device='cuda')
-                    dim3_b = torch.randint(shape[3],(nunmber_fault_bias,), device='cuda')
-                    dim4_b = torch.randint(total_bits,(nunmber_fault_bias,), device='cuda')
+                    k_b = torch.randint(shape[0],(nunmber_fault_bias,), device=device)
+                    dim1_b = torch.randint(shape[1],(nunmber_fault_bias,), device=device)
+                    dim2_b = torch.randint(shape[2],(nunmber_fault_bias,), device=device)
+                    dim3_b = torch.randint(shape[3],(nunmber_fault_bias,), device=device)
+                    dim4_b = torch.randint(total_bits,(nunmber_fault_bias,), device=device)
             for fault in range(nunmber_fault_weight):
                 idx = [layer_idx, k_w[fault].item(), dim1_w[fault].item(), dim2_w[fault].item(), dim3_w[fault].item()]
                 for i in range(dim_len + 1):

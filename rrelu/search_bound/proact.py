@@ -68,7 +68,48 @@ def eval(model: nn.Module, data_loader_dict,is_root) :
         "val_loss": val_loss.avg.item(),
     }
     return val_results
+def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
 
+    test_criterion = nn.CrossEntropyLoss()
+
+    val_loss = AverageMeter()
+    val_top1 = AverageMeter()
+    val_top5 = AverageMeter()
+
+    model.eval()
+    with torch.no_grad():
+        with tqdm(
+            total=len(data_loader_dict["val"]),
+            desc="Eval",
+        ) as t:
+            for images, labels in data_loader_dict["val"]:
+                images, labels = images, labels
+                # compute output
+                output = model(images)
+                loss = test_criterion(output, labels)
+                val_loss.update(loss, images.shape[0])
+                acc1, acc5 = accuracy(output, labels, topk=(1, 5))
+                val_top5.update(acc5[0], images.shape[0])
+                val_top1.update(acc1[0], images.shape[0])
+
+                t.set_postfix(
+                    {
+                        "loss": val_loss.avg.item(),
+                        "top1": val_top1.avg.item(),
+                        "top5": val_top5.avg.item(),
+                        "#samples": val_top1.count,
+                        "batch_size": images.shape[0],
+                        "img_size": images.shape[2],
+                    }
+                )
+                t.update()
+
+    val_results = {
+        "val_top1": val_top1.avg.item(),
+        "val_top5": val_top5.avg.item(),
+        "val_loss": val_loss.avg.item(),
+    }
+    return val_results
 
 activation={}
 def get_activation(name):
@@ -84,11 +125,11 @@ def relu_hooks(model: nn.Module, prefix=''):
         elif len(list(layer.children())) > 0:  # Recursively check nested modules
             relu_hooks(layer, layer_name)
 
-def replace_act_all(model:nn.Module,bounds,tresh, prefix='')->nn.Module:
+def replace_act_all(model:nn.Module,bounds,tresh, prefix='',device='cuda')->nn.Module:
     for name,layer in model.named_children():
         layer_name = f"{prefix}.{name}" if prefix else name
         if isinstance(layer, nn.ReLU) or isinstance(layer,Relu_bound)or isinstance(layer, nn.ReLU6):
-            model._modules[name] = bounded_hyrelu_proact(bounds[layer_name].detach(),tresh[layer_name].detach())
+            model._modules[name] = bounded_hyrelu_proact(bounds[layer_name].detach(),tresh[layer_name].detach(),device=device)
         elif len(list(layer.children())) > 0:
             replace_act_all(layer,bounds,tresh,layer_name)               
     return model  
@@ -98,18 +139,17 @@ def load_state_dict_from_file(file: str) -> Dict[str, torch.Tensor]:
     if "state_dict" in checkpoint:
         checkpoint = checkpoint["state_dict"]
     return checkpoint
-def proact_bounds(model:nn.Module, train_loader, bound_type='layer', bitflip='float',is_root=False):
+def proact_bounds(model:nn.Module, train_loader, bound_type='layer', bitflip='float',is_root=False,device='cpu'):
     original_model  = copy.deepcopy(model)
-    results,tresh,_ = Ranger_bounds(copy.deepcopy(model),train_loader,'cuda','neuron',bitflip)
+    results,tresh,_ = Ranger_bounds(copy.deepcopy(model),train_loader,device,'neuron',bitflip)
     len_relu = len(results)
     if bound_type =="layer":
         for i,(key, val) in enumerate(results.items()):
                 if i<len_relu - 1:
                     results[key] = torch.max(val)  
                     tresh[key] = torch.min(tresh[key]) 
-    model = replace_act_all(model,results,tresh)
+    model = replace_act_all(model,results,tresh,device=device)
     torch.save(model.state_dict(), "temp_{}_{}_{}.pth".format(bound_type,bitflip,original_model.__class__.__name__))      
-    print(eval(model,train_loader,True))
     warnings.filterwarnings("ignore")
     torch.backends.cudnn.benchmark = True
     for name, param in model.named_parameters():
@@ -119,7 +159,7 @@ def proact_bounds(model:nn.Module, train_loader, bound_type='layer', bitflip='fl
             param.requires_grad=True      
      
     weight_decay_list =[4e-5,4e-6,4e-7,4e-8,4e-9,4e-10,4e-11,4e-12,4e-13,4e-14,4e-15]
-    model = train(model=model,original_model=original_model,data_provider=train_loader,weight_decay_list=weight_decay_list,bound_type=bound_type,bitflip=bitflip,is_root=is_root)
+    model = train(model=model,original_model=original_model,data_provider=train_loader,weight_decay_list=weight_decay_list,bound_type=bound_type,bitflip=bitflip,is_root=is_root,device=device)
     model.load_state_dict(torch.load("temp_{}_{}_{}.pth".format(bound_type,bitflip,original_model.__class__.__name__)))  
     for name, param in model.named_parameters():
         if np.any([key in name for key in ["weight", "norm","bias"]]):
@@ -170,7 +210,7 @@ def L1_reg(model):
     return L1_term
 
 
-def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warmup_epochs=5,n_epochs=5 , treshold=torch.tensor(0.2),bound_type = "layer" , bitflip = "fixed",is_root=False):
+def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warmup_epochs=5,n_epochs=5 , treshold=torch.tensor(0.2),bound_type = "layer" , bitflip = "fixed",is_root=False,device='cpu'):
     params_with_wd = []
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -182,11 +222,18 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
         },
     ]
     # build optimizer
-    optimizer = torch.optim.Adam(
-            net_params,
-            lr=base_lr * dist.get_world_size(),
-            weight_decay=4e-11
-        )
+    if device=='cuda':
+        optimizer = torch.optim.Adam(
+                net_params,
+                lr=base_lr * dist.get_world_size(),
+                weight_decay=4e-11
+            )
+    else:
+        optimizer = torch.optim.Adam(
+                net_params,
+                lr=base_lr ,
+                weight_decay=4e-11
+            )   
     # optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
     # build lr scheduler
     lr_scheduler = CosineLRwithWarmup(
@@ -200,11 +247,14 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
             param.requires_grad=False
         else:
             param.requires_grad=False 
-    train_criterion = nn.CrossEntropyLoss().cuda()
-    test_criterion = nn.CrossEntropyLoss().cuda()
+    train_criterion = nn.CrossEntropyLoss().to(device)
+    test_criterion = nn.CrossEntropyLoss().to(device)
     # init
     # hvd.broadcast_parameters(model.state_dict(), root_rank=0)
-    val_info_dict = eval(model, data_provider,is_root)
+    if device=='cuda':
+        val_info_dict = eval(model, data_provider,is_root)
+    else:
+        val_info_dict = eval_cpu(model, data_provider,True)   
     print(val_info_dict["val_top1"])
     best_acc =torch.tensor(val_info_dict["val_top1"])
     print(f"the best accuracy is :{best_acc}")
@@ -244,10 +294,13 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
                     epoch,
                     optimizer,
                     train_criterion,
-                    lr_scheduler
+                    lr_scheduler,
+                    device
                 )
-            
-                val_info_dict = eval(model, data_provider,is_root)
+                if device=='cuda':
+                    val_info_dict = eval(model, data_provider,is_root)
+                else:
+                    val_info_dict = eval_cpu(model, data_provider,True)    
                 is_best = val_info_dict["val_top1"] > best_val
                 best_val = max(best_val, val_info_dict["val_top1"])
                 if is_root:
@@ -278,9 +331,14 @@ def train_one_epoch(
     optimizer,
     criterion,
     lr_scheduler,
+    device,
 ):
-    train_loss = DistributedMetric()
-    train_top1 = DistributedMetric()
+    if device=='cuda':
+        train_loss = DistributedMetric()
+        train_top1 = DistributedMetric()
+    else:
+        train_loss = AverageMeter()
+        train_top1 = AverageMeter()    
     model.train()
     data_provider['train'].sampler.set_epoch(epoch)
 
@@ -293,7 +351,7 @@ def train_one_epoch(
         end = time.time()         
         for _, (images, labels) in enumerate(data_provider['train']):
             data_time.update(time.time() - end)
-            images, labels = images.cuda(), labels.cuda()
+            images, labels = images.to(device), labels.to(device)
             l2_bounds = 0.0
             for name, param in model.named_parameters():
                 if param.requires_grad==True:

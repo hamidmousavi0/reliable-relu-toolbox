@@ -31,6 +31,7 @@ parser.add_argument("--bounds_type", type=str, default="neuron", choices=["layer
 parser.add_argument("--bitflip", type=str, default="fixed", choices=["fixed", "float"])
 parser.add_argument("--fault_rates", type=list, default=[1e-7,3e-7,1e-6,3e-6,1e-5,3e-5])
 parser.add_argument("--pretrained_model", action='store_true',  default=False)
+parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
 def setup_distributed():
     dist.init_process_group(backend='nccl')
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -72,7 +73,7 @@ if __name__ == "__main__":
                 if param is not None:
                     param.copy_(torch.tensor(Fxp(param.clone().cpu().numpy(), True, n_word=args.n_word, n_frac=args.n_frac, n_int=args.n_int).get_val(),dtype=torch.float32,device='cuda').cuda())        
     if args.name_relu_bound!='none':
-        model = replace_act(model, args.name_relu_bound, args.name_serach_bound, data_loader_dict, args.bounds_type, args.bitflip,args.pretrained_model,args.dataset,is_root=(dist.get_rank() == 0))
+        model = replace_act(model, args.name_relu_bound, args.name_serach_bound, data_loader_dict, args.bounds_type, args.bitflip,args.pretrained_model,args.dataset,is_root=(dist.get_rank() == 0),device = args.device)
         if args.pretrained_model:
             model.load_state_dict(torch.load('pretrained_models/{}/{}/{}_{}_{}_{}.pth'.format(args.dataset,args.model,args.name_relu_bound,args.name_serach_bound,args.bounds_type,args.bitflip),map_location='cuda:0'))
         else:
