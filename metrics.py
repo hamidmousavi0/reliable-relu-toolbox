@@ -83,7 +83,7 @@ def eval_cpu(model: nn.Module, data_loader_dict) -> Dict:
                         "loss": val_loss.avg.item(),
                         "top1": val_top1.avg.item(),
                         "top5": val_top5.avg.item(),
-                        "#samples": val_top1.count.item(),
+                        "#samples": val_top1.count,
                         "batch_size": images.shape[0],
                         "img_size": images.shape[2],
                     }
@@ -210,7 +210,7 @@ def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,b
                         "loss": val_loss.avg.item(),
                         "top1": val_top1.avg.item(),
                         "top5": val_top5.avg.item(),
-                        "#samples": val_top1.count.item(),
+                        "#samples": val_top1.count,
                         "batch_size": images.shape[0],
                         "img_size": images.shape[2],
                         "fault_rate": fault_rate,
