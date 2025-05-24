@@ -167,7 +167,7 @@ def accuracy_vs_faultrate(model,fault_rate,data_loader,bitflip,fault_simulation_
                 use_cuda=use_cuda,
                 )
     model.to(device)
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         val_loss = DistributedMetric()
         val_top1 = DistributedMetric()
         val_top5 = DistributedMetric()
