@@ -255,7 +255,7 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
     if torch.cuda.device_count()>1:
         val_info_dict = eval(model, data_provider,is_root)
     else:
-        val_info_dict = eval_(model, data_provider,True)   
+        val_info_dict = eval_(model, data_provider,True,device)   
     print(val_info_dict["val_top1"])
     best_acc =torch.tensor(val_info_dict["val_top1"])
     print(f"the best accuracy is :{best_acc}")
@@ -301,7 +301,7 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
                 if torch.cuda.device_count()>1:
                     val_info_dict = eval(model, data_provider,is_root)
                 else:
-                    val_info_dict = eval_(model, data_provider,True)    
+                    val_info_dict = eval_(model, data_provider,True,device)    
                 is_best = val_info_dict["val_top1"] > best_val
                 best_val = max(best_val, val_info_dict["val_top1"])
                 if is_root:
