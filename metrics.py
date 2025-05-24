@@ -54,9 +54,9 @@ def eval(model: nn.Module, data_loader_dict) -> Dict:
     }
     return val_results
 
-def eval_cpu(model: nn.Module, data_loader_dict) -> Dict:
+def eval_(model: nn.Module, data_loader_dict,device) -> Dict:
 
-    test_criterion = nn.CrossEntropyLoss().cuda()
+    test_criterion = nn.CrossEntropyLoss().to(device)
 
     val_loss = AverageMeter()
     val_top1 = AverageMeter()
@@ -69,7 +69,7 @@ def eval_cpu(model: nn.Module, data_loader_dict) -> Dict:
             desc="Eval",
         ) as t:
             for images, labels in data_loader_dict["val"]:
-                images, labels = images, labels
+                images, labels = images.to(device), labels.device()
                 # compute output
                 output = model(images)
                 loss = test_criterion(output, labels)
@@ -163,7 +163,7 @@ def eval_fault(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitfl
     return val_results
 
 
-def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitflip=None,total_bits = 32 , n_frac = 16 , n_int = 15 )-> Dict:
+def eval_fault_(model:nn.Module,data_loader_dict, fault_rate,iterations=500,bitflip=None,total_bits = 32 , n_frac = 16 , n_int = 15,device='cpu' )-> Dict:
     inputs, classes = next(iter(data_loader_dict['val'])) 
     pfi_model = FaultInjection(model, 
                             inputs.shape[0],
@@ -172,7 +172,7 @@ def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,b
                             total_bits= total_bits,
                             n_frac = n_frac, 
                             n_int = n_int, 
-                            use_cuda=False,
+                            use_cuda= device=='cuda',
                             )
     print(pfi_model.print_pytorchfi_layer_summary())
     test_criterion = nn.CrossEntropyLoss()
@@ -189,14 +189,14 @@ def eval_fault_cpu(model:nn.Module,data_loader_dict, fault_rate,iterations=500,b
         ) as t:
             for i in range(iterations):
                 if bitflip=='float':
-                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate,device='cpu')
+                    corrupted_model = multi_weight_inj_float(pfi_model,fault_rate,device=device)
                 elif bitflip=='fixed':    
-                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate,device='cpu')
+                    corrupted_model = multi_weight_inj_fixed(pfi_model,fault_rate,device=device)
                 elif bitflip =="int":
-                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate,device='cpu')
+                    corrupted_model = multi_weight_inj_int (pfi_model,fault_rate,device=device)
                     # corrupted_model = multi_weight_inj_int(pfi_model,fault_rate)          
                 for images, labels in data_loader_dict["val"]:
-                    images, labels = images, labels
+                    images, labels = images.to(device), labels.to(device)
                     output = corrupted_model(images)
                     loss = test_criterion(output, labels)
                     val_loss.update(loss, images.shape[0])
