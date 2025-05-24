@@ -68,7 +68,7 @@ def eval(model: nn.Module, data_loader_dict,is_root) :
         "val_loss": val_loss.avg.item(),
     }
     return val_results
-def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
+def eval_(model: nn.Module, data_loader_dict,is_root,device) :
 
     test_criterion = nn.CrossEntropyLoss()
 
@@ -77,13 +77,14 @@ def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
     val_top5 = AverageMeter()
 
     model.eval()
+    model.to(device)
     with torch.no_grad():
         with tqdm(
             total=len(data_loader_dict["val"]),
             desc="Eval",
         ) as t:
             for images, labels in data_loader_dict["val"]:
-                images, labels = images, labels
+                images, labels = images.to(device), labels.to(device)
                 # compute output
                 output = model(images)
                 loss = test_criterion(output, labels)
@@ -222,7 +223,7 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
         },
     ]
     # build optimizer
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         optimizer = torch.optim.Adam(
                 net_params,
                 lr=base_lr * dist.get_world_size(),
@@ -251,10 +252,10 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
     test_criterion = nn.CrossEntropyLoss().to(device)
     # init
     # hvd.broadcast_parameters(model.state_dict(), root_rank=0)
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         val_info_dict = eval(model, data_provider,is_root)
     else:
-        val_info_dict = eval_cpu(model, data_provider,True)   
+        val_info_dict = eval_(model, data_provider,True)   
     print(val_info_dict["val_top1"])
     best_acc =torch.tensor(val_info_dict["val_top1"])
     print(f"the best accuracy is :{best_acc}")
@@ -297,10 +298,10 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
                     lr_scheduler,
                     device
                 )
-                if device=='cuda':
+                if torch.cuda.device_count()>1:
                     val_info_dict = eval(model, data_provider,is_root)
                 else:
-                    val_info_dict = eval_cpu(model, data_provider,True)    
+                    val_info_dict = eval_(model, data_provider,True)    
                 is_best = val_info_dict["val_top1"] > best_val
                 best_val = max(best_val, val_info_dict["val_top1"])
                 if is_root:
@@ -333,14 +334,14 @@ def train_one_epoch(
     lr_scheduler,
     device,
 ):
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         train_loss = DistributedMetric()
         train_top1 = DistributedMetric()
     else:
         train_loss = AverageMeter()
         train_top1 = AverageMeter()    
     model.train()
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         data_provider['train'].sampler.set_epoch(epoch)
 
     data_time = AverageMeter()
