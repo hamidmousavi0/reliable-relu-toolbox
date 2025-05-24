@@ -65,9 +65,9 @@ def eval(model: nn.Module, data_loader_dict,is_root) :
     }
     return val_results
 
-def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
+def eval_(model: nn.Module, data_loader_dict,is_root,device) :
 
-    test_criterion = nn.CrossEntropyLoss()
+    test_criterion = nn.CrossEntropyLoss().to(device)
 
     val_loss = AverageMeter()
     val_top1 = AverageMeter()
@@ -80,7 +80,7 @@ def eval_cpu(model: nn.Module, data_loader_dict,is_root) :
             desc="Eval",
         ) as t:
             for images, labels in data_loader_dict["val"]:
-                images, labels = images, labels
+                images, labels = images.to(device), labels.to(device)
                 # compute output
                 output = model(images)
                 loss = test_criterion(output, labels)
@@ -195,7 +195,7 @@ def train(
         },
     ]
     # build optimizer
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         optimizer = torch.optim.Adam(
             net_params,
             lr=base_lr * dist.get_world_size(),
@@ -238,10 +238,10 @@ def train(
             lr_scheduler,
             device=device
         )
-        if device=='cuda':
+        if torch.cuda.device_count()>1:
             val_info_dict = eval(model, data_provider,is_root)
         else:
-            val_info_dict = eval_cpu(model, data_provider,True)
+            val_info_dict = eval_(model, data_provider,True)
 
         is_best = val_info_dict["val_top1"] > best_val
         best_val = max(best_val, val_info_dict["val_top1"])
@@ -267,7 +267,7 @@ def train_one_epoch(
     device
 
 ):
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         train_loss = DistributedMetric()
         train_top1 = DistributedMetric()
     else:
@@ -276,7 +276,7 @@ def train_one_epoch(
 
 
     model.train()
-    if device=='cuda':
+    if torch.cuda.device_count()>1:
         data_provider['train'].sampler.set_epoch(epoch)
 
     data_time = AverageMeter()
