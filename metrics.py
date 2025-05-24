@@ -63,6 +63,7 @@ def eval_(model: nn.Module, data_loader_dict,device) -> Dict:
     val_top5 = AverageMeter()
 
     model.eval()
+    model.to(device)
     with torch.no_grad():
         with tqdm(
             total=len(data_loader_dict["val"]),
