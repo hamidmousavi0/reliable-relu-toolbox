@@ -70,7 +70,7 @@ def eval_(model: nn.Module, data_loader_dict,device) -> Dict:
             desc="Eval",
         ) as t:
             for images, labels in data_loader_dict["val"]:
-                images, labels = images.to(device), labels.device()
+                images, labels = images.to(device), labels.to(device)
                 # compute output
                 output = model(images)
                 loss = test_criterion(output, labels)
