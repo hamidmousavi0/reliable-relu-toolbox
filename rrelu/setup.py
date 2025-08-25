@@ -3,9 +3,16 @@ import torchvision.models as models
 import math
 import os.path
 from PIL import Image
+from collections import OrderedDict
 from typing import Dict, Optional, Tuple, Type
 from rrelu.utils.metric import accuracy
 from tqdm import tqdm
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+from torch.utils.data import DataLoader
 from rrelu.pytorchfi.weight_error_models import multi_weight_inj_fixed,multi_weight_inj_float,multi_weight_inj_int
 from rrelu.relu_bound.bound_relu import Relu_bound
 from rrelu.pytorchfi.core import FaultInjection
@@ -265,6 +272,7 @@ def build_model(
     n_classes=10,
     dropout_rate=0.0,
     pretrained = True,
+    data_loader_dict = None,
     **kwargs,
 ) -> nn.Module:
 
@@ -300,10 +308,44 @@ def build_model(
                 model = torch.hub.load("chenyaofo/pytorch-cifar-models", dataset + '_' + name.lower(), pretrained=pretrained)    
         else:
             if 'alexnet' in name.lower():
-                model = AlexNet_model(n_classes=n_classes, dropout_rate=dropout_rate)
+                model = AlexNet_model(n_classes=n_classes, dropout_rate=dropout_rate).to('cuda')
+                if os.path.exists('alexnet_cifar10.pth'): 
+                    model.load_state_dict(torch.load('alexnet_cifar10.pth'))
+                else:    
+                    criterion = nn.CrossEntropyLoss()
+                    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
+                    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)  
+                    best_acc = 0
+                    for epoch in range(1, 101):   # train for 100 epochs
+                        model = train(epoch,model,data_loader_dict['train'],'cuda',optimizer,criterion)
+                        scheduler.step()
+
+                    torch.save(model.state_dict(), "alexnet_cifar10.pth")
             if 'resnet50' in name.lower():
                 model = ResNet50(n_classes,dropout_rate)     
     return model
+def train(epoch,model,trainloader,device,optimizer,criterion):
+    model.train()
+    running_loss = 0.0
+    correct, total = 0, 0
+    for i, (inputs, labels) in enumerate(trainloader):
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        _, predicted = outputs.max(1)
+        total += labels.size(0)
+        correct += predicted.eq(labels).sum().item()
+
+    acc = 100. * correct / total
+    print(f"Epoch {epoch} | Train Loss: {running_loss/len(trainloader):.3f} | Train Acc: {acc:.2f}%")
+    return model
+
 
 # Hook function to capture activations
 activation={}

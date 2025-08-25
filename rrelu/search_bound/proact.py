@@ -210,7 +210,7 @@ def L1_reg(model):
     return L1_term
 
 
-def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warmup_epochs=5,n_epochs=5 , treshold=torch.tensor(0.2),bound_type = "layer" , bitflip = "fixed",is_root=False,device='cpu'):
+def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warmup_epochs=0,n_epochs=5 , treshold=torch.tensor(1.5),bound_type = "layer" , bitflip = "fixed",is_root=False,device='cpu'):
     params_with_wd = []
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -267,12 +267,12 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
             param.requires_grad=True 
             if param.nelement() > 3 : 
                 base_lr = 0.001
-                n_epochs = 100
-                warmup_epochs=5
+                n_epochs = 5
+                warmup_epochs=0
             else:
                 base_lr = 0.01   
-                n_epochs = 100
-                warmup_epochs=5
+                n_epochs = 5
+                warmup_epochs=0
             
         for wd in weight_decay_list:
             print(wd)
@@ -309,14 +309,19 @@ def train(model,original_model,data_provider,weight_decay_list,base_lr=0.01,warm
                     epoch_log += f"\ttrain_top1={train_info_dict['train_top1']:.2f}\tlr={optimizer.param_groups[0]['lr']:.2E}"
                 if torch.abs(best_acc - val_info_dict["val_top1"]) >=10:
                     model.load_state_dict(torch.load("temp_{}_{}_{}.pth".format(bound_type,bitflip,original_model.__class__.__name__)))  
+                    WD_Break = False
                     break
 
                 if (epoch + 1 ) % 1 == 0:    
                     if torch.abs(best_acc - val_info_dict["val_top1"]) <=treshold:
                         torch.save(model.state_dict(), "temp_{}_{}_{}.pth".format(bound_type,bitflip,original_model.__class__.__name__)) 
+                        WD_Break = True
                     else:
                         model.load_state_dict(torch.load("temp_{}_{}_{}.pth".format(bound_type,bitflip,original_model.__class__.__name__)))  
-                        break       
+                        WD_Break = False
+                        break 
+            if WD_Break:
+                break              
         param.requires_grad = False       
     return model
 

@@ -23,15 +23,15 @@ parser.add_argument("--dataset", type=str, default="cifar10", choices=["mnist", 
 parser.add_argument("--data_path", type=str, default="./dataset/cifar10")
 parser.add_argument("--image_size", type=int, default=32)
 parser.add_argument("--manual_seed", type=int, default=0)
-parser.add_argument("--model", type=str, default="resnet20")
+parser.add_argument("--model", type=str, default="alexnet")
 parser.add_argument("--save_path", type=str, default=None)
-parser.add_argument("--name_relu_bound", type=str, default="zero", choices=["zero", "tresh", "fitact", "proact", "none"])
-parser.add_argument("--name_serach_bound", type=str, default="ranger", choices=["ranger", "ftclip", "fitact", "proact"])
-parser.add_argument("--bounds_type", type=str, default="neuron", choices=["layer", "neuron"])
+parser.add_argument("--name_relu_bound", type=str, default="proact", choices=["zero", "tresh", "fitact", "proact", "none"])
+parser.add_argument("--name_serach_bound", type=str, default="proact", choices=["ranger", "ftclip", "fitact", "proact"])
+parser.add_argument("--bounds_type", type=str, default="layer", choices=["layer", "neuron"])
 parser.add_argument("--bitflip", type=str, default="fixed", choices=["fixed", "float"])
 parser.add_argument("--fault_rates", type=list, default=[1e-7,3e-7,1e-6,3e-6,1e-5,3e-5])
 parser.add_argument("--pretrained_model", action='store_true',  default=False)
-parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"])
+parser.add_argument("--device", type=str, default="cuda", choices=["cpu", "cuda"])
 def setup_distributed():
     dist.init_process_group(backend='nccl')
     local_rank = int(os.environ["LOCAL_RANK"])
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         num_replica=world_size,
         rank= rank
     )
-    model = build_model(args.model, args.dataset, n_classes, 0.0, pretrained=True).to(args.device)
+    model = build_model(args.model, args.dataset, n_classes, 0.0, pretrained=True, data_loader_dict=data_loader_dict).to(args.device)
     if args.device=='cuda':
         model = DDP(model, device_ids=[local_rank])
     if args.device=='cuda':
